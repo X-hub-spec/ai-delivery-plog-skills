@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI交付局图文PlogSKills"
+  short_description: "把飞书、Markdown 或 Word 长文做成纵向预览、可调图片、可下载 PNG 的图文 Plog 卡片。"
+  default_prompt: "Use $ai-delivery-plog-skills to turn this Feishu/Markdown/Word article into 1080×1440 vertical Plog cards with image-size controls and PNG download buttons in the preview."

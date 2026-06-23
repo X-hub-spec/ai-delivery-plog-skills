@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>[文章标题] AI交付局图文Plog</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --page-bg: #efe4d0;
+      --sheet: #fbf5e8;
+      --sheet-warm: #f2e8d7;
+      --ink: #372a21;
+      --ink-soft: #5b493b;
+      --muted: #7e6d5c;
+      --rule: #d7c6a9;
+      --gold: #b9872f;
+      --gold-deep: #76521c;
+      --gold-soft: #ead39b;
+      --olive: #66724a;
+      --card-w: 1080px;
+      --card-h: 1440px;
+      --preview-scale: clamp(0.32, 78vw / 1080, 0.58);
+      --font-title: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: "SFMono-Regular", "Menlo", "Consolas", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 14% 6%, rgba(255, 255, 245, 0.78), transparent 30%),
+        radial-gradient(circle at 88% 14%, rgba(177, 137, 76, 0.22), transparent 34%),
+        linear-gradient(135deg, #f4ead8, #e9dcc5 52%, #f1e8d8);
+      color: var(--ink);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      min-height: 70px;
+      padding: 14px 18px;
+      background: rgba(239, 228, 208, 0.9);
+      border-bottom: 1px solid rgba(128, 111, 95, 0.22);
+      backdrop-filter: blur(16px);
+    }
+
+    .toolbar button,
+    .image-control button {
+      min-height: 42px;
+      border: 1px solid rgba(128, 111, 95, 0.34);
+      border-radius: 8px;
+      padding: 0 16px;
+      background: rgba(255, 250, 238, 0.84);
+      color: var(--ink);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .toolbar button:hover,
+    .image-control button:hover {
+      border-color: rgba(185, 135, 47, 0.75);
+    }
+
+    .toolbar .status {
+      min-width: 10em;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .board {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      width: 100%;
+      padding: 30px 18px 56px;
+    }
+
+    .page-frame {
+      width: calc(var(--card-w) * var(--preview-scale));
+      height: calc(var(--card-h) * var(--preview-scale));
+      flex: 0 0 auto;
+      background: transparent;
+    }
+
+    .sheet {
+      width: var(--card-w);
+      height: var(--card-h);
+      transform: scale(var(--preview-scale));
+      transform-origin: top left;
+      overflow: hidden;
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      padding: 74px 78px;
+      background:
+        linear-gradient(160deg, rgba(255, 252, 242, 0.96) 0%, var(--sheet) 48%, var(--sheet-warm) 100%),
+        var(--sheet);
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      box-shadow:
+        0 22px 58px rgba(67, 50, 29, 0.13),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .sheet::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(102, 84, 60, 0.034) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(102, 84, 60, 0.026) 1px, transparent 1px);
+      background-size: 42px 42px;
+      opacity: 0.34;
+    }
+
+    .mast {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 32px;
+      align-items: start;
+      min-height: 54px;
+      color: var(--muted);
+      font-size: 35px;
+      line-height: 1.35;
+    }
+
+    .topic {
+      max-width: 58ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .page-mark {
+      font-family: var(--font-mono);
+      font-size: 35px;
+      color: var(--ink-soft);
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      min-height: 0;
+      padding: 44px 0 10px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .content.center { justify-content: center; }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 850px;
+      font-family: var(--font-title);
+      font-size: 70px;
+      line-height: 1.12;
+      letter-spacing: 0;
+      font-weight: 760;
+      color: #31251d;
+      text-wrap: balance;
+    }
+
+    h2 {
+      max-width: 860px;
+      font-family: var(--font-title);
+      font-size: 58px;
+      line-height: 1.16;
+      letter-spacing: 0;
+      font-weight: 740;
+      color: #35281f;
+      text-wrap: balance;
+    }
+
+    .quote {
+      margin-top: 42px;
+      padding-top: 28px;
+      border-top: 2px solid rgba(185, 135, 47, 0.46);
+      font-family: var(--font-title);
+      font-size: 48px;
+      line-height: 1.38;
+      color: var(--gold);
+      text-wrap: pretty;
+    }
+
+    .deck {
+      display: grid;
+      gap: var(--gap, 28px);
+      margin-top: var(--top, 36px);
+      font-size: var(--copy, 37px);
+      line-height: var(--leading, 1.5);
+      color: var(--ink);
+      font-weight: 430;
+      text-wrap: pretty;
+    }
+
+    .deck p { max-width: 24em; }
+
+    mark.gold {
+      padding: 0 0.12em 0.04em;
+      background: linear-gradient(180deg, transparent 12%, rgba(234, 211, 155, 0.78) 12%, rgba(234, 211, 155, 0.86) 88%, transparent 88%);
+      border-bottom: 4px solid rgba(185, 135, 47, 0.72);
+      color: var(--gold-deep);
+      font: inherit;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    .section-rule {
+      width: 148px;
+      height: 6px;
+      margin: 0 0 42px;
+      background: linear-gradient(90deg, var(--gold), var(--olive));
+      border-radius: 999px;
+    }
+
+    .visual {
+      --visual-h: 620px;
+      --img-size: 100%;
+      width: 100%;
+      height: var(--visual-h);
+      min-height: 0;
+      margin: 34px 0 0;
+      display: grid;
+      place-items: center;
+      overflow: visible;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .visual img {
+      width: auto;
+      height: auto;
+      max-width: var(--img-size);
+      max-height: var(--img-size);
+      display: block;
+      object-fit: contain;
+      filter: drop-shadow(0 22px 28px rgba(67, 50, 29, 0.16));
+    }
+
+    .visual.tweet { --visual-h: 720px; }
+    .visual.mid { --visual-h: 610px; }
+    .visual.tall { --visual-h: 760px; }
+    .visual.final { --visual-h: 620px; }
+
+    .image-control {
+      position: absolute;
+      z-index: 4;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: rgba(255, 250, 238, 0.86);
+      border: 1px solid rgba(128, 111, 95, 0.22);
+      border-radius: 8px;
+      opacity: 0;
+      transition: opacity 0.16s ease;
+    }
+
+    .sheet:hover .image-control,
+    .image-control:focus-within {
+      opacity: 1;
+    }
+
+    .image-control label {
+      color: var(--muted);
+      font-size: 16px;
+      white-space: nowrap;
+    }
+
+    .image-control input {
+      width: 160px;
+      accent-color: var(--gold);
+    }
+
+    .export-stage {
+      position: fixed;
+      left: -12000px;
+      top: 0;
+      width: var(--card-w);
+      height: var(--card-h);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .export-stage .page-frame {
+      width: var(--card-w);
+      height: var(--card-h);
+    }
+
+    .export-stage .sheet {
+      transform: none;
+      border-radius: 0;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .export-stage .image-control {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      :root { --preview-scale: clamp(0.38, 94vw / 1080, 0.48); }
+      .toolbar { justify-content: flex-start; overflow-x: auto; }
+      .board { padding: 18px 10px 40px; gap: 18px; }
+    }
+
+    @media print {
+      .toolbar { display: none; }
+      body { padding: 0; background: var(--page-bg); }
+      .board { display: block; width: auto; padding: 0; }
+      .page-frame {
+        width: var(--card-w);
+        height: var(--card-h);
+        page-break-after: always;
+        break-after: page;
+      }
+      .sheet {
+        transform: none;
+        border: 0;
+        border-radius: 0;
+      }
+      .image-control { display: none; }
+    }
+  </style>
+</head>
+<body data-source-revision="[optional-source-revision]">
+  <nav class="toolbar" aria-label="导出工具">
+    <button type="button" data-download-all>下载全部 PNG</button>
+    <button type="button" data-download-current>下载当前页 PNG</button>
+    <button type="button" data-reset-images>重置图片大小</button>
+    <span class="status" data-status>先预览，调整图片后再下载。</span>
+  </nav>
+
+  <main class="board" aria-label="AI交付局图文Plog纵向预览">
+    <section class="page-frame" aria-label="第 1 张卡片">
+      <article class="sheet">
+        <header class="mast">
+          <span class="topic">[文章短标题]</span>
+          <span class="page-mark">01 / 03</span>
+        </header>
+        <div class="content">
+          <h1>[文章完整标题]</h1>
+          <p class="quote">[原文开篇金句。不要新增导语。]</p>
+          <div class="deck">
+            <p>[原文段落。可以把原文金句包成 <mark class="gold">金色高亮</mark>，但不能改写。]</p>
+            <p>[原文段落。]</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="page-frame" aria-label="第 2 张卡片">
+      <article class="sheet">
+        <header class="mast">
+          <span class="topic">[文章短标题]</span>
+          <span class="page-mark">02 / 03</span>
+        </header>
+        <div class="content">
+          <div class="section-rule"></div>
+          <h2>[原文小标题]</h2>
+          <div class="deck">
+            <p>[原文说明段落。保持原文信息，不新增补充。]</p>
+            <p>[原文说明段落。]</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="page-frame" aria-label="第 3 张卡片">
+      <article class="sheet">
+        <header class="mast">
+          <span class="topic">[文章短标题]</span>
+          <span class="page-mark">03 / 03</span>
+        </header>
+        <div class="content">
+          <h2>[图片对应段落标题]</h2>
+          <div class="deck">
+            <p>[图片前后的原文段落。]</p>
+          </div>
+          <figure class="visual mid" data-adjustable-image aria-label="文章配图">
+            <img src="[local-image.png]" alt="[图片说明]">
+          </figure>
+          <div class="image-control" data-for-image>
+            <label>图片大小 <input type="range" min="45" max="120" value="100" step="1" data-image-scale></label>
+            <button type="button" data-image-reset>重置</button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div class="export-stage" data-export-stage aria-hidden="true"></div>
+
+  <script>
+    (function () {
+      var status = document.querySelector('[data-status]');
+      var stage = document.querySelector('[data-export-stage]');
+
+      function setStatus(text) {
+        if (status) status.textContent = text;
+      }
+
+      function downloadUrl(url, filename) {
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      async function waitForImages(root) {
+        var images = Array.prototype.slice.call(root.querySelectorAll('img'));
+        await Promise.all(images.map(function (img) {
+          if (img.complete) return Promise.resolve();
+          return new Promise(function (resolve) {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+          });
+        }));
+      }
+
+      async function ensureCanvasRenderer() {
+        if (window.html2canvas) return window.html2canvas;
+        throw new Error('PNG 下载组件未加载，请检查网络或使用 scripts/export-cards.mjs 导出。');
+      }
+
+      async function renderFrame(frame) {
+        var renderer = await ensureCanvasRenderer();
+        var clone = frame.cloneNode(true);
+        clone.classList.add('export-active');
+        stage.replaceChildren(clone);
+        await waitForImages(stage);
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        var sheet = clone.querySelector('.sheet');
+        return renderer(sheet, {
+          width: 1080,
+          height: 1440,
+          scale: 1,
+          backgroundColor: null,
+          useCORS: true,
+          logging: false,
+          windowWidth: 1080,
+          windowHeight: 1440
+        });
+      }
+
+      async function downloadFrame(frame, index) {
+        var canvas = await renderFrame(frame);
+        var url = canvas.toDataURL('image/png');
+        downloadUrl(url, 'ai-delivery-plog-' + String(index + 1).padStart(2, '0') + '.png');
+      }
+
+      function currentFrameIndex() {
+        var frames = Array.prototype.slice.call(document.querySelectorAll('.page-frame'));
+        var middle = window.scrollY + window.innerHeight / 2;
+        var best = 0;
+        var bestDistance = Infinity;
+        frames.forEach(function (frame, index) {
+          var rect = frame.getBoundingClientRect();
+          var center = window.scrollY + rect.top + rect.height / 2;
+          var distance = Math.abs(center - middle);
+          if (distance < bestDistance) {
+            best = index;
+            bestDistance = distance;
+          }
+        });
+        return best;
+      }
+
+      function bindImageControls() {
+        document.querySelectorAll('[data-image-scale]').forEach(function (input) {
+          var content = input.closest('.content');
+          var visual = content && content.querySelector('[data-adjustable-image]');
+          if (!visual) return;
+          input.addEventListener('input', function () {
+            visual.style.setProperty('--img-size', input.value + '%');
+          });
+        });
+
+        document.querySelectorAll('[data-image-reset]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var content = button.closest('.content');
+            var visual = content && content.querySelector('[data-adjustable-image]');
+            var input = content && content.querySelector('[data-image-scale]');
+            if (visual) visual.style.setProperty('--img-size', '100%');
+            if (input) input.value = '100';
+          });
+        });
+      }
+
+      function bindDownloads() {
+        var allButton = document.querySelector('[data-download-all]');
+        var currentButton = document.querySelector('[data-download-current]');
+        var resetButton = document.querySelector('[data-reset-images]');
+        var frames = Array.prototype.slice.call(document.querySelectorAll('.page-frame'));
+
+        if (allButton) {
+          allButton.addEventListener('click', async function () {
+            try {
+              allButton.disabled = true;
+              setStatus('正在下载全部 PNG...');
+              for (var i = 0; i < frames.length; i += 1) {
+                setStatus('正在下载 ' + String(i + 1) + ' / ' + String(frames.length));
+                await downloadFrame(frames[i], i);
+              }
+              setStatus('下载完成。');
+            } catch (error) {
+              setStatus(error.message || '下载失败。');
+            } finally {
+              allButton.disabled = false;
+            }
+          });
+        }
+
+        if (currentButton) {
+          currentButton.addEventListener('click', async function () {
+            var index = currentFrameIndex();
+            try {
+              currentButton.disabled = true;
+              setStatus('正在下载当前页...');
+              await downloadFrame(frames[index], index);
+              setStatus('当前页下载完成。');
+            } catch (error) {
+              setStatus(error.message || '下载失败。');
+            } finally {
+              currentButton.disabled = false;
+            }
+          });
+        }
+
+        if (resetButton) {
+          resetButton.addEventListener('click', function () {
+            document.querySelectorAll('[data-adjustable-image]').forEach(function (visual) {
+              visual.style.setProperty('--img-size', '100%');
+            });
+            document.querySelectorAll('[data-image-scale]').forEach(function (input) {
+              input.value = '100';
+            });
+            setStatus('图片大小已重置。');
+          });
+        }
+      }
+
+      function adjustDensity(section) {
+        var available = section.clientHeight;
+        if (!available) return;
+        var pressure = section.scrollHeight / available;
+        var decks = Array.prototype.slice.call(section.querySelectorAll('.deck'));
+
+        decks.forEach(function (deck) {
+          if (pressure > 1.03) {
+            deck.style.setProperty('--copy', '35px');
+            deck.style.setProperty('--leading', '1.42');
+            deck.style.setProperty('--gap', '18px');
+          } else if (pressure < 0.76) {
+            deck.style.setProperty('--leading', '1.62');
+            deck.style.setProperty('--gap', '36px');
+          }
+        });
+      }
+
+      function fitAll() {
+        document.querySelectorAll('.content').forEach(adjustDensity);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () {
+          bindImageControls();
+          bindDownloads();
+          fitAll();
+        });
+      } else {
+        bindImageControls();
+        bindDownloads();
+        fitAll();
+      }
+
+      window.addEventListener('resize', fitAll, { passive: true });
+    })();
+  </script>
+</body>
+</html>

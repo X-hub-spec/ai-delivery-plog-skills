@@ -1,0 +1,41 @@
+{
+  "title": "文章标题",
+  "shortTitle": "文章短标题",
+  "source": {
+    "type": "feishu",
+    "url": "https://example.feishu.cn/wiki/...",
+    "revisionId": "latest"
+  },
+  "preview": {
+    "orientation": "vertical",
+    "firstOutput": "html-preview",
+    "pngDownloadInBrowser": true,
+    "packageAfterApproval": true
+  },
+  "highlights": ["从原文中选出来的金句"],
+  "pages": [
+    {
+      "heading": "第一页标题",
+      "blocks": [
+        "第一页正文第一段。所有内容必须来自原文。",
+        "第一页正文第二段。"
+      ],
+      "highlights": ["第一页正文第一段"],
+      "fontSize": 38
+    },
+    {
+      "heading": "带图片的一页",
+      "blocks": [
+        "图片说明也必须来自原文，或保持为空。"
+      ],
+      "image": {
+        "src": "assets/image01.png",
+        "placement": "after-blocks",
+        "visualClass": "mid",
+        "initialSizePercent": 100,
+        "adjustable": true,
+        "fit": "contain"
+      }
+    }
+  ]
+}

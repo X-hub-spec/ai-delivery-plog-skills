@@ -243,6 +243,7 @@
     .visual {
       --visual-h: 620px;
       --img-size: 100%;
+      --visual-y: 0px;
       width: 100%;
       height: var(--visual-h);
       min-height: 0;
@@ -253,7 +254,12 @@
       background: transparent;
       border: 0;
       border-radius: 0;
+      transform: translateY(var(--visual-y));
+      cursor: grab;
+      touch-action: none;
     }
+
+    .visual.is-dragging { cursor: grabbing; }
 
     .visual img {
       width: auto;
@@ -269,6 +275,29 @@
     .visual.mid { --visual-h: 610px; }
     .visual.tall { --visual-h: 760px; }
     .visual.final { --visual-h: 620px; }
+
+    .image-caption {
+      position: absolute;
+      left: 50%;
+      top: var(--caption-top, 0px);
+      right: auto;
+      bottom: auto;
+      z-index: 3;
+      margin: 0;
+      max-width: 30em;
+      width: max-content;
+      text-align: center;
+      font-size: 25px;
+      line-height: 1.34;
+      color: var(--muted);
+      text-wrap: pretty;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      transform: translateX(-50%);
+    }
+
+    .image-caption.is-dragging { cursor: grabbing; }
 
     .image-control {
       position: absolute;
@@ -410,6 +439,7 @@
           <figure class="visual mid" data-adjustable-image aria-label="文章配图">
             <img src="[local-image.png]" alt="[图片说明]">
           </figure>
+          <figcaption class="image-caption" data-draggable-caption>[飞书原文图片说明；没有则删除此元素]</figcaption>
           <div class="image-control" data-for-image>
             <label>图片大小 <input type="range" min="45" max="120" value="100" step="1" data-image-scale></label>
             <button type="button" data-image-reset>重置</button>
@@ -498,6 +528,99 @@
         return best;
       }
 
+      function initializeCaptionPositions(root, force) {
+        var scope = root || document;
+        scope.querySelectorAll('[data-draggable-caption]').forEach(function (caption) {
+          var content = caption.closest('.content');
+          var visual = content && content.querySelector('[data-adjustable-image]');
+          var image = visual && visual.querySelector('img');
+          if (!image) return;
+          var contentRect = content.getBoundingClientRect();
+          var imageRect = image.getBoundingClientRect();
+          if (caption.dataset.captionReady !== '1' || force) caption.dataset.captionOffset = '14';
+          var offset = parseFloat(caption.dataset.captionOffset || '14');
+          caption.style.setProperty('--caption-top', imageRect.bottom - contentRect.top + offset + 'px');
+          caption.dataset.captionReady = '1';
+        });
+      }
+
+      function bindCaptionDrag() {
+        document.querySelectorAll('[data-draggable-caption]').forEach(function (caption) {
+          if (caption.dataset.dragReady === '1') return;
+          caption.dataset.dragReady = '1';
+          caption.addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            caption.classList.add('is-dragging');
+            try { caption.setPointerCapture(event.pointerId); } catch (error) {}
+            var content = caption.closest('.content');
+            var startY = event.clientY;
+            var startTop = caption.offsetTop;
+
+            function move(moveEvent) {
+              if (!content) return;
+              var contentRect = content.getBoundingClientRect();
+              var captionRect = caption.getBoundingClientRect();
+              var visual = content.querySelector('[data-adjustable-image]');
+              var image = visual && visual.querySelector('img');
+              var imageRect = image && image.getBoundingClientRect();
+              var nextTop = startTop + moveEvent.clientY - startY;
+              nextTop = Math.max(0, Math.min(contentRect.height - captionRect.height, nextTop));
+              caption.style.setProperty('--caption-top', nextTop + 'px');
+              if (imageRect) caption.dataset.captionOffset = String(nextTop - (imageRect.bottom - contentRect.top));
+            }
+
+            function up(upEvent) {
+              caption.classList.remove('is-dragging');
+              try { caption.releasePointerCapture(upEvent.pointerId); } catch (error) {}
+              caption.removeEventListener('pointermove', move);
+              caption.removeEventListener('pointerup', up);
+              caption.removeEventListener('pointercancel', up);
+            }
+
+            caption.addEventListener('pointermove', move);
+            caption.addEventListener('pointerup', up);
+            caption.addEventListener('pointercancel', up);
+          });
+        });
+      }
+
+      function bindImageDrag() {
+        document.querySelectorAll('[data-adjustable-image]').forEach(function (visual) {
+          if (visual.dataset.dragReady === '1') return;
+          visual.dataset.dragReady = '1';
+          visual.addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            visual.classList.add('is-dragging');
+            try { visual.setPointerCapture(event.pointerId); } catch (error) {}
+            var content = visual.closest('.content');
+            var startY = event.clientY;
+            var currentY = parseFloat(visual.style.getPropertyValue('--visual-y')) || 0;
+
+            function move(moveEvent) {
+              if (!content) return;
+              var contentRect = content.getBoundingClientRect();
+              var visualRect = visual.getBoundingClientRect();
+              var nextY = currentY + moveEvent.clientY - startY;
+              nextY = Math.max(-visual.offsetTop, Math.min(contentRect.height - visual.offsetTop - visualRect.height, nextY));
+              visual.style.setProperty('--visual-y', nextY + 'px');
+              initializeCaptionPositions(content, false);
+            }
+
+            function up(upEvent) {
+              visual.classList.remove('is-dragging');
+              try { visual.releasePointerCapture(upEvent.pointerId); } catch (error) {}
+              visual.removeEventListener('pointermove', move);
+              visual.removeEventListener('pointerup', up);
+              visual.removeEventListener('pointercancel', up);
+            }
+
+            visual.addEventListener('pointermove', move);
+            visual.addEventListener('pointerup', up);
+            visual.addEventListener('pointercancel', up);
+          });
+        });
+      }
+
       function bindImageControls() {
         document.querySelectorAll('[data-image-scale]').forEach(function (input) {
           var content = input.closest('.content');
@@ -505,6 +628,9 @@
           if (!visual) return;
           input.addEventListener('input', function () {
             visual.style.setProperty('--img-size', input.value + '%');
+            requestAnimationFrame(function () {
+              initializeCaptionPositions(content, false);
+            });
           });
         });
 
@@ -513,8 +639,14 @@
             var content = button.closest('.content');
             var visual = content && content.querySelector('[data-adjustable-image]');
             var input = content && content.querySelector('[data-image-scale]');
-            if (visual) visual.style.setProperty('--img-size', '100%');
+            if (visual) {
+              visual.style.setProperty('--img-size', '100%');
+              visual.style.setProperty('--visual-y', '0px');
+            }
             if (input) input.value = '100';
+            requestAnimationFrame(function () {
+              initializeCaptionPositions(content, true);
+            });
           });
         });
       }
@@ -563,9 +695,13 @@
           resetButton.addEventListener('click', function () {
             document.querySelectorAll('[data-adjustable-image]').forEach(function (visual) {
               visual.style.setProperty('--img-size', '100%');
+              visual.style.setProperty('--visual-y', '0px');
             });
             document.querySelectorAll('[data-image-scale]').forEach(function (input) {
               input.value = '100';
+            });
+            requestAnimationFrame(function () {
+              initializeCaptionPositions(document, true);
             });
             setStatus('图片大小已重置。');
           });
@@ -597,16 +733,123 @@
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {
           bindImageControls();
+          bindImageDrag();
+          bindCaptionDrag();
           bindDownloads();
           fitAll();
+          requestAnimationFrame(function () {
+            initializeCaptionPositions(document, false);
+          });
         });
       } else {
         bindImageControls();
+        bindImageDrag();
+        bindCaptionDrag();
         bindDownloads();
         fitAll();
+        requestAnimationFrame(function () {
+          initializeCaptionPositions(document, false);
+        });
       }
 
       window.addEventListener('resize', fitAll, { passive: true });
+    })();
+  </script>
+  <script>
+    (function () {
+      function downloadBlob(blob, filename) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1200);
+      }
+
+      function setExactStatus(text) {
+        var status = document.querySelector('[data-status]');
+        if (status) status.textContent = text;
+      }
+
+      function currentFrameIndexExact() {
+        var frames = Array.prototype.slice.call(document.querySelectorAll('.page-frame'));
+        var middle = window.scrollY + window.innerHeight / 2;
+        var best = 0;
+        var bestDistance = Infinity;
+        frames.forEach(function (frame, index) {
+          var rect = frame.getBoundingClientRect();
+          var center = window.scrollY + rect.top + rect.height / 2;
+          var distance = Math.abs(center - middle);
+          if (distance < bestDistance) {
+            best = index;
+            bestDistance = distance;
+          }
+        });
+        return best;
+      }
+
+      async function exportCardExact(index) {
+        var response = await fetch('/api/export-card', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ pageIndex: index, html: document.documentElement.outerHTML })
+        });
+        if (!response.ok) throw new Error(await response.text().catch(function () { return '真实浏览器截图导出失败。'; }));
+        return response.blob();
+      }
+
+      function bindExactExport() {
+        var allButton = document.querySelector('[data-download-all]');
+        var currentButton = document.querySelector('[data-download-current]');
+        var frames = Array.prototype.slice.call(document.querySelectorAll('.page-frame'));
+
+        if (currentButton) {
+          currentButton.addEventListener('click', async function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            var index = currentFrameIndexExact();
+            try {
+              currentButton.disabled = true;
+              setExactStatus('正在用真实浏览器截图导出当前页...');
+              var blob = await exportCardExact(index);
+              downloadBlob(blob, 'ai-delivery-plog-' + String(index + 1).padStart(2, '0') + '.png');
+              setExactStatus('当前页真实截图导出完成。');
+            } catch (error) {
+              setExactStatus('真实截图不可用，请用 scripts/preview-server.mjs 打开预览，或使用备用下载。');
+            } finally {
+              currentButton.disabled = false;
+            }
+          }, true);
+        }
+
+        if (allButton) {
+          allButton.addEventListener('click', async function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            try {
+              allButton.disabled = true;
+              for (var i = 0; i < frames.length; i += 1) {
+                setExactStatus('正在用真实浏览器截图导出 ' + String(i + 1) + ' / ' + String(frames.length));
+                var blob = await exportCardExact(i);
+                downloadBlob(blob, 'ai-delivery-plog-' + String(i + 1).padStart(2, '0') + '.png');
+              }
+              setExactStatus('全部真实截图导出完成。');
+            } catch (error) {
+              setExactStatus('真实截图不可用，请用 scripts/preview-server.mjs 打开预览，或使用备用下载。');
+            } finally {
+              allButton.disabled = false;
+            }
+          }, true);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindExactExport);
+      } else {
+        bindExactExport();
+      }
     })();
   </script>
 </body>

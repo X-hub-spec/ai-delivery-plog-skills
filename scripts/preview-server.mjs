@@ -4,11 +4,11 @@ import { createReadStream } from "node:fs";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { statSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(process.cwd());
 const port = Number(process.env.PORT || 8765);
-const chrome = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const jobsDir = path.join(root, ".plog-export-jobs");
 
 const types = {
@@ -41,7 +41,34 @@ function body(req) {
   });
 }
 
+function chromePath() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "google-chrome",
+    "chromium",
+    "chromium-browser"
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      if (candidate.includes("/") && !statSync(candidate).isFile()) continue;
+      return candidate;
+    } catch {
+      if (!candidate.includes("/")) return candidate;
+    }
+  }
+  return "";
+}
+
 function execChrome(args) {
+  const chrome = chromePath();
+  if (!chrome) {
+    return Promise.reject(new Error("Missing Chrome/Edge. Install Google Chrome or set CHROME_PATH=/path/to/chrome."));
+  }
   return new Promise((resolve, reject) => {
     execFile(chrome, args, { timeout: 45000 }, (error, stdout, stderr) => {
       if (error) {
